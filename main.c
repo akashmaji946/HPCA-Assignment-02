@@ -1,8 +1,3 @@
-/*
-Author: Akash Maji
-Contact: akashmaji@iisc.ac.in
-*/
-
 #include "work.h"
 
 #include <stdio.h>
@@ -12,99 +7,54 @@ Contact: akashmaji@iisc.ac.in
 #include <unistd.h>
 #include <string.h>
 
-// 2MB large page size
-#define PAGE_SIZE (2 * 1024 * 1024) 
-// The address space has a maximum of 512 2MB regions
-#define MAX_LARGE_PAGES 512
-// The number of large pages touched by our main program
-int NUM_LARGE_PAGES = 0;
-// Type for a 64-bit binary logical address
-typedef long long int LOGICAL_ADDRESS;
-// Specified base addresses (to be read in from the text file)
-LOGICAL_ADDRESS base_addresses[MAX_LARGE_PAGES];
-// Array to hold the allocated  2MB logical addresses
-void *mmaped_logical_addresses[MAX_LARGE_PAGES];
+#define PAGE_SIZE (2 * 1024 * 1024)  // 2MB page size
+#define NUM_PAGES 8
 
+// Specified base addresses
+long long int base_addresses[NUM_PAGES] = {
+1309518331904,
+1309155524608,
+1309356851200,
+1309931470848,
+1309614800896,
+1309054861312,
+1309262479360,
+1309291839488
+};
+// Array to hold the allocated addresses
+void *allocated_addresses[NUM_PAGES];
 
-/* function to allocate memory to N 2MB regions using mmap() */
-int allocate_adresses() {
+int alloc() {
     
-    printf("Allocating.....\n");
+    for (int i = 0; i < NUM_PAGES; i++) {
+        // Allocate memory using mmap at the specified address
+        allocated_addresses[i] = mmap((void *)base_addresses[i], PAGE_SIZE, PROT_READ | PROT_WRITE,
+                                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
 
-    for (int i = 0; i < NUM_LARGE_PAGES; i++) {
-
-        // Allocating memory using mmap() syscall at the specified 2MB start address
-        mmaped_logical_addresses[i] = mmap((void *)base_addresses[i], PAGE_SIZE, PROT_READ | PROT_WRITE,
-                                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_FIXED, -1, 0);
-
-        if (mmaped_logical_addresses[i] == MAP_FAILED) {
-            fprintf(stderr, "mmap() failed to allocate");
+        if (allocated_addresses[i] == MAP_FAILED) {
+            perror("mmap failed");
             exit(EXIT_FAILURE);
         }
 
-        printf("     Allocated 2MB page %d at address %p\n", i, mmaped_logical_addresses[i]);
+        // Optionally, initialize the allocated memory
+        // memset(allocated_addresses[i], 0, PAGE_SIZE);
+        printf("Allocated page %d at address %p\n", i, allocated_addresses[i]);
     }
-
-    printf("Allocated.....\n");
-
-    return 0;
-
-}
-
-/* function to deallocate memory from N 2MB regions using munmap() */
-int deallocate_addresses(){
-
-    printf("Dellocating.....\n");
-
-    // Sanity Cleaning the allocatwed 2MB large pages
-    for (int i = 0; i < NUM_LARGE_PAGES; i++) {
-
-        if (munmap(mmaped_logical_addresses[i], PAGE_SIZE) == -1) {
-            fprintf(stderr, "munmap() failed to deallocate");
-            exit(EXIT_FAILURE);
-        }
-
-        printf("     Deallocated 2MB page %d at address %p\n", i, mmaped_logical_addresses[i]);
-
-    }
-    printf("Deallocated.....\n");
 
     return 0;
 }
 
-/* function to read in values from a file specifying the decimal adresses and store in array */
-int read_regions_from_file(const char *filename,  LOGICAL_ADDRESS base_addresses[]) {
-
-    FILE *file = fopen(filename, "r");
-
-    if (file == NULL) {
-        fprintf(stderr,"Error opening file: %s\n", filename);
-        exit(EXIT_FAILURE);
-    }
-    
-    // Number of adresses read
-    int size = 0; 
-
-    printf("Reading.....\n"); 
-
-    while (1) {
-        LOGICAL_ADDRESS number;
-        // Exit loop, if reading number fails
-        if (fscanf(file, "%lld", &number) != 1) {
-            break; 
+int dealloc(){
+    // Clean up: Unmap the allocated memory
+    for (int i = 0; i < NUM_PAGES; i++) {
+        if (munmap(allocated_addresses[i], PAGE_SIZE) == -1) {
+            perror("munmap failed");
         }
-        // Store the number and increment size
-        (base_addresses)[size++] = number;
     }
-
-     printf("Read.....\n");
-
-    fclose(file);
-    return size;
-
+    return 0;
 }
 
-/* Driver Code */
+
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     fprintf(stderr, "Usage: main <last 5 digits of your reg. no>\n");
@@ -113,16 +63,15 @@ int main(int argc, char *argv[]) {
   work_init(atoi(argv[1]));
 
   // Put your changes here
-  NUM_LARGE_PAGES = read_regions_from_file("largepages.txt", base_addresses);
-  allocate_adresses();
+  alloc();
 
   if (work_run() == 0) {
     printf("Work completed successfully\n");
   }
 
-  deallocate_addresses();
+  dealloc();
 
-  // printf("Hello! Akash Maji - 24212\n");
+  printf("Hello Akash\n");
 
   return 0;
 }
@@ -135,45 +84,54 @@ sudo sysctl kernel.perf_event_paranoid=-1
 -------------------------------
 cd ~/Desktop/hpca
 ls
-make clean
 make
 
 sudo perf mem record ./main 24212
 sudo perf mem report > perf.txt
 
+sudo perf mem record -c 1000 ./main 24212
+sudo perf mem report > perf_1000.txt
+
+sudo perf mem record -c 100 ./main 24212
+sudo perf mem report > perf_100.txt
+
+
 sudo perf stat -e\
-dTLB-loads,\
-dTLB-load-misses,\
-dTLB-stores,\
-dTLB-store-misses \
+L1-dcache-loads,\
+L1-dcache-load-misses,\
+L1-dcache-stores,\
+LLC-loads,\
+LLC-load-misses,\
+LLC-stores,\
+LLC-store-misses \
 ./main 24212
-
 */
+
 /*
+ Performance counter stats for 'CPU(s) 10':
 
- Performance counter stats for './main 24212':
+       207,346,260      L1-dcache-loads                                                         (42.85%)
+        18,587,362      L1-dcache-load-misses            #    8.96% of all L1-dcache accesses   (57.14%)
+       137,857,784      L1-dcache-stores                                                        (57.14%)
+         7,198,589      LLC-loads                                                               (57.14%)
+         1,254,792      LLC-load-misses                  #   17.43% of all L1-icache accesses   (57.15%)
+         3,372,797      LLC-stores                                                              (28.57%)
+         1,876,987      LLC-store-misses                                                        (28.57%)
 
-    13,013,995,269      dTLB-loads                                                            
-     6,866,430,671      dTLB-load-misses                 #   52.76% of all dTLB cache accesses
-         8,594,696      dTLB-stores                                                           
-            51,916      dTLB-store-misses                                                     
+      29.816626086 seconds time elapsed
 
-      30.001309407 seconds time elapsed
+ Performance counter stats for 'CPU(s) 10':
 
-      30.000342000 seconds user
-       0.000000000 seconds sys
+        45,933,034      L1-dcache-loads                                                         (42.85%)
+         4,816,331      L1-dcache-load-misses            #   10.49% of all L1-dcache accesses   (57.15%)
+        32,028,448      L1-dcache-stores                                                        (57.15%)
+         2,397,312      LLC-loads                                                               (57.15%)
+           210,888      LLC-load-misses                  #    8.80% of all L1-icache accesses   (57.15%)
+           571,225      LLC-stores                                                              (28.56%)
+           105,171      LLC-store-misses                                                        (28.56%)
+
+      29.827088495 seconds time elapsed
 
 
- Performance counter stats for './main 24212':
-
-    13,010,455,841      dTLB-loads                                                            
-     4,689,985,549      dTLB-load-misses                 #   36.05% of all dTLB cache accesses
-         6,330,210      dTLB-stores                                                           
-            36,138      dTLB-store-misses                                                     
-
-      20.449348980 seconds time elapsed
-
-      20.448968000 seconds user
-       0.000000000 seconds sys
 
 */

@@ -1,9 +1,6 @@
 import time
-import sys
-import os
-
 MB_2 = 2*1024*1024
-REGIONS_COUNTER = {}
+MY_DICT = {}
 
 def write_list_to_file(file_path, items):
     try:
@@ -15,7 +12,7 @@ def write_list_to_file(file_path, items):
 
 
 
-def get_useful_lines_and_obtain_list(large_pages, filename, outfile):
+def print_lines_starting_with_hash(filename):
     print("The filename is:", filename)
     time.sleep(1)
     try:
@@ -33,11 +30,10 @@ def get_useful_lines_and_obtain_list(large_pages, filename, outfile):
                             base = int(row[9][2:], 16)//MB_2 * MB_2
                             print(row)
                             print(hexa, deci, base)
-                            if base in REGIONS_COUNTER:
-                                if row[-5] == "miss":
-                                    REGIONS_COUNTER[base] += 1
+                            if base in MY_DICT:
+                                MY_DICT[base] += 1
                             else:
-                                REGIONS_COUNTER[base] = 1
+                                MY_DICT[base] = 1
                         except Exception as e:
                             print(f"Convert error: {e}")
 
@@ -49,29 +45,15 @@ def get_useful_lines_and_obtain_list(large_pages, filename, outfile):
 
     print("___________________________________________________")
     regions = []
-    print("@MB Region Bases : TLB misses Count")
-    for k in sorted(REGIONS_COUNTER.keys()):
-        v = REGIONS_COUNTER[k]
+    
+    for k, v in MY_DICT.items():
         print(k, v)
         regions.append([k, v])
 
     sorted_regions = sorted(regions, key = lambda x:x[1], reverse=1)
     print('__________________________________________________________')
-    print(len(REGIONS_COUNTER))
-    print(sorted_regions[:large_pages])
-    write_list_to_file(outfile, sorted_regions[:large_pages])
+    print(len(MY_DICT))
+    print(sorted_regions[:8])
+    write_list_to_file('output.txt', sorted_regions[:8])
 
-def execute_commands():
-    os.system("gnome-terminal")
-    os.system("cd $HOME/Desktop/HPCA-02/")
-    os.system("make clean")
-    os.system("make")
-    os.system('sudo perf mem record ./main 24212')
-    os.system("sudo perf mem report > perf_data.txt")
-
-if __name__ == "__main__":
-    n = len(sys.argv)
-    assert(n > 0)
-    large_pages = int(sys.argv[1])
-    execute_commands()
-    get_useful_lines_and_obtain_list(large_pages, "perf_data.txt", "largepages.txt")
+print_lines_starting_with_hash("perf_1000.txt")
